@@ -12,3 +12,4 @@ const api = axios.create({
 export function getTags() {
   return api.get<Tag[]>('/tags');
 }
+

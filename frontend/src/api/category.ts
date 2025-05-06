@@ -14,3 +14,4 @@ const api = axios.create({
 export function getCategories() {
   return api.get<Category[]>('/categories');
 }
+
