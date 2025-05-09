@@ -1,25 +1,55 @@
 package com.lawfirm.archive.controller;
 
-import com.lawfirm.archive.model.LoginRequest;
-import com.lawfirm.archive.model.LoginResponse;
+import com.lawfirm.archive.dto.AuthResponse;
+import com.lawfirm.archive.dto.LoginRequest;
+import com.lawfirm.archive.model.User;
+import com.lawfirm.archive.repository.UserRepository;
+import com.lawfirm.archive.security.JwtTokenProvider;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.OffsetDateTime;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
-    
+
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
+
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        // 简单示例：仅做用户名密码验证，实际项目应增加加密和安全措施
-        // 固定admin/admin登录凭证用于演示
-        if ("admin".equals(request.getUsername()) && "admin".equals(request.getPassword())) {
-            // 返回模拟的JWT令牌
-            String token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ";
-            return ResponseEntity.ok(new LoginResponse(token));
+    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+        // 认证用户
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+        );
+        
+        // 设置认证上下文
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        
+        // 生成JWT令牌
+        String token = jwtTokenProvider.generateToken(authentication);
+        
+        // 更新最后登录时间
+        Optional<User> userOpt = userRepository.findByUsername(request.getUsername());
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            user.setLastLoginTime(OffsetDateTime.now());
+            userRepository.save(user);
         }
         
-        // 用户名或密码错误
-        return ResponseEntity.status(401).build();
+        // 返回令牌
+        return ResponseEntity.ok(new AuthResponse(token));
     }
 } 

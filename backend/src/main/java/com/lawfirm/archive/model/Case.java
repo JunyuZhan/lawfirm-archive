@@ -3,6 +3,10 @@ package com.lawfirm.archive.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Data
 @Entity
@@ -12,40 +16,40 @@ public class Case {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 案号
+    @Column(name = "case_number")
     private String caseNumber;
-
-    // 案由
-    private String caseReason;
-
-    // 当事人
-    private String parties;
-
-    // 代理人
+    
     private String agents;
-
-    // 立案日期
-    private LocalDate filingDate;
-
-    // 管辖法院
+    
+    @Column(name = "case_reason")
+    private String caseReason;
+    
     private String court;
-
-    // 审理程序
+    
+    @Column(name = "filing_date")
+    private LocalDate filingDate;
+    
+    private String parties;
+    
     private String procedure;
-
-    // 案件状态
+    
     private String status;
+    
+    @Column(name = "category_id")
+    private Long categoryId;
 
-    // 案件标签
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", insertable = false, updatable = false)
+    private Category category;
+
+    @OneToMany(mappedBy = "caseEntity")
+    private List<Document> documents = new ArrayList<>();
+
     @ManyToMany
     @JoinTable(
         name = "case_tags",
         joinColumns = @JoinColumn(name = "case_id"),
         inverseJoinColumns = @JoinColumn(name = "tag_id")
     )
-    private java.util.List<Tag> tags;
-
-    @ManyToOne
-    @JoinColumn(name = "category_id")
-    private Category category;
-} 
+    private Set<Tag> tags = new HashSet<>();
+}

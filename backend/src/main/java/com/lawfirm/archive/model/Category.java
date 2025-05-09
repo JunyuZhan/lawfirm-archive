@@ -2,6 +2,7 @@ package com.lawfirm.archive.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -14,11 +15,16 @@ public class Category {
 
     private String name;
 
-    // 多级分类
-    @ManyToOne
-    @JoinColumn(name = "parent_id")
+    @Column(name = "parent_id")
+    private Long parentId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id", insertable = false, updatable = false)
     private Category parent;
 
     @OneToMany(mappedBy = "parent")
-    private List<Category> children;
+    private List<Category> children = new ArrayList<>();
+
+    @OneToMany(mappedBy = "category")
+    private List<Case> cases = new ArrayList<>();
 } 

@@ -1,247 +1,194 @@
 <template>
-  <div class="case-detail">
-    <div class="page-header">
-      <div class="title-section">
-        <el-button icon="el-icon-back" size="small" @click="goBack">返回</el-button>
-        <h1>案件档案详情</h1>
-      </div>
+  <div class="case-detail-flex">
+    <!-- 左侧树形目录 -->
+    <div class="tree-panel">
       <div class="action-buttons">
-        <el-button type="primary" @click="editCase">编辑案件</el-button>
-        <el-button type="success" @click="uploadDocuments">上传文件</el-button>
-      </div>
-    </div>
-
-    <!-- 案件基本信息卡片 -->
-    <el-card class="case-info-card">
-      <template #header>
-        <div class="card-header">
-          <h2>基本信息</h2>
-          <el-tag size="medium" :type="getStatusType(caseInfo.status)">{{ getStatusLabel(caseInfo.status) }}</el-tag>
+        <div class="button-group">
+          <el-button type="primary" size="small" @click="uploadDocuments">
+            <el-icon><Upload /></el-icon>上传文件
+          </el-button>
         </div>
-      </template>
-      <div class="case-info-content">
-        <div class="info-row">
-          <div class="info-item">
-            <div class="info-label">案号</div>
-            <div class="info-value">{{ caseInfo.caseNo }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">案件类型</div>
-            <div class="info-value">{{ getCaseType(caseInfo.type) }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">案由</div>
-            <div class="info-value">{{ caseInfo.title }}</div>
-          </div>
+        <div class="button-group">
+          <el-button type="success" size="small" :disabled="!selectedFiles.length" @click="handleBatchDownload">
+            <el-icon><Download /></el-icon>批量下载
+          </el-button>
+          <el-button type="info" size="small" :disabled="!selectedFiles.length" @click="openBatchRemarksDialog">
+            <el-icon><Edit /></el-icon>批量备注
+          </el-button>
         </div>
-        <div class="info-row">
-          <div class="info-item">
-            <div class="info-label">当事人</div>
-            <div class="info-value">{{ caseInfo.parties }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">管辖法院</div>
-            <div class="info-value">{{ caseInfo.court }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">立案日期</div>
-            <div class="info-value">{{ caseInfo.filingDate }}</div>
-          </div>
-        </div>
-        <div class="info-row full-width">
-          <div class="info-item">
-            <div class="info-label">备注</div>
-            <div class="info-value remarks">{{ caseInfo.remarks || '暂无备注' }}</div>
-          </div>
+        <div class="button-group">
+          <el-button type="primary" size="small" :disabled="!selectedFiles.length" @click="openBatchCategoryDialog">
+            <el-icon><Folder /></el-icon>批量分类
+          </el-button>
+          <el-button type="danger" size="small" :disabled="!selectedFiles.length" @click="handleBatchDelete">
+            <el-icon><Delete /></el-icon>批量删除
+          </el-button>
         </div>
       </div>
-    </el-card>
-
-    <!-- 档案文件列表 -->
-    <el-card class="documents-card">
-      <template #header>
-        <div class="card-header">
-          <h2>档案文件</h2>
-          <div class="header-actions">
-            <el-input
-              v-model="fileSearchKeyword"
-              placeholder="搜索文件名"
-              prefix-icon="el-icon-search"
-              size="small"
-              style="width: 200px"
-              clearable
-            />
-            <el-button type="primary" size="small" @click="uploadDocuments">上传文件</el-button>
-          </div>
-        </div>
-      </template>
-
-      <!-- 文件分类标签 -->
-      <el-tabs v-model="activeFileTab">
-        <el-tab-pane label="全部文件" name="all"></el-tab-pane>
-        <el-tab-pane label="证据材料" name="evidence"></el-tab-pane>
-        <el-tab-pane label="诉讼文书" name="litigation"></el-tab-pane>
-        <el-tab-pane label="裁判文书" name="judgment"></el-tab-pane>
-        <el-tab-pane label="其他材料" name="others"></el-tab-pane>
-      </el-tabs>
-
-      <!-- 文件列表 -->
-      <el-table :data="filteredDocuments" stripe style="width: 100%;" v-loading="documentsLoading">
-        <el-table-column prop="fileName" label="文件名称" min-width="200">
-          <template #default="scope">
-            <div class="file-name-cell">
-              <i :class="getFileIcon(scope.row.fileType)" class="file-icon"></i>
-              <el-link @click="previewFile(scope.row)">{{ scope.row.fileName }}</el-link>
-              <el-tag v-if="scope.row.versions > 1" size="mini" type="info">v{{ scope.row.versions }}</el-tag>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="category" label="分类" width="120">
-          <template #default="scope">
-            <el-tag size="small" :type="getFileTagType(scope.row.category)">
-              {{ getFileCategoryName(scope.row.category) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="uploadTime" label="上传时间" width="180" />
-        <el-table-column prop="fileSize" label="大小" width="100" />
-        <el-table-column prop="uploadedBy" label="上传人" width="120" />
-        <el-table-column label="操作" width="250" fixed="right">
-          <template #default="scope">
-            <el-button size="small" @click="previewFile(scope.row)">预览</el-button>
-            <el-button size="small" type="primary" @click="downloadFile(scope.row)">下载</el-button>
-            <el-dropdown trigger="click" size="small" @command="(cmd) => handleFileAction(cmd, scope.row)">
-              <el-button size="small">
-                更多<i class="el-icon-arrow-down el-icon--right"></i>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="history">版本历史</el-dropdown-item>
-                  <el-dropdown-item command="rename">重命名</el-dropdown-item>
-                  <el-dropdown-item command="changeCategory">更改分类</el-dropdown-item>
-                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 文件分页 -->
-      <div class="pagination">
-        <el-pagination
-          @size-change="handleFileSizeChange"
-          @current-change="handleFilePageChange"
-          :current-page="filePage"
-          :page-sizes="[10, 20, 50]"
-          :page-size="filePageSize"
-          layout="total, sizes, prev, pager, next"
-          :total="totalDocuments"
-        />
-      </div>
-    </el-card>
-
-    <!-- 文件上传对话框 -->
-    <el-dialog title="上传档案文件" v-model="uploadDialogVisible" width="600px">
-      <el-form :model="uploadForm" label-width="100px">
-        <el-form-item label="文件分类">
-          <el-select v-model="uploadForm.category" placeholder="请选择文件分类">
-            <el-option label="证据材料" value="evidence" />
-            <el-option label="诉讼文书" value="litigation" />
-            <el-option label="裁判文书" value="judgment" />
-            <el-option label="其他材料" value="others" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="文件上传">
-          <el-upload
-            :action="`${baseApiUrl}/api/documents/upload/${caseId}`"
-            :headers="uploadHeaders"
-            :on-success="handleUploadSuccess"
-            :on-error="handleUploadError"
-            :data="{category: uploadForm.category, remarks: uploadForm.remarks}"
-            :file-list="uploadForm.fileList"
-            multiple
-          >
-            <el-button size="small" type="primary">选择文件</el-button>
-            <template #tip>
-              <div class="el-upload__tip">允许上传PDF、Word、图片等格式文件</div>
+      <el-tree
+        :data="treeData"
+        :props="treeProps"
+        node-key="id"
+        highlight-current
+        show-checkbox
+        :default-checked-keys="[]"
+        @node-click="handleTreeNodeClick"
+        @check-change="handleTreeCheckChange"
+        style="height: calc(75vh - 120px); overflow-y: auto; margin-top: 12px;"
+        :expand-on-click-node="false"
+        ref="treeRef"
+        draggable
+        @node-drag-end="handleDragEnd"
+      >
+        <template #default="{ node, data }">
+          <el-dropdown trigger="contextmenu" @command="cmd => handleFileContextMenu(cmd, data)">
+            <span class="tree-file-label">
+              <i :class="getFileIcon(data.fileType)" v-if="data.fileType" style="margin-right:4px;"></i>
+              {{ data.label }}
+              <el-tag v-if="data.remarks" size="small" type="info" style="margin-left:4px;">有备注</el-tag>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu v-if="data.fileType">
+                <el-dropdown-item command="rename">重命名</el-dropdown-item>
+                <el-dropdown-item command="changeCategory">更改分类</el-dropdown-item>
+                <el-dropdown-item command="editRemarks">编辑备注</el-dropdown-item>
+                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+              </el-dropdown-menu>
             </template>
-          </el-upload>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="uploadForm.remarks" type="textarea" rows="3"></el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="uploadDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmUpload" :loading="uploading">上传</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 版本历史对话框 -->
-    <el-dialog title="文件版本历史" v-model="historyDialogVisible" width="700px">
-      <div v-if="selectedFile" class="file-history-header">
-        <h3>{{ selectedFile.fileName }}</h3>
+          </el-dropdown>
+        </template>
+      </el-tree>
+    </div>
+    <!-- 右侧预览区 -->
+    <div class="preview-panel">
+      <div v-if="selectedFile">
+        <template v-if="selectedFile.fileType && selectedFile.fileType.startsWith('image/')">
+          <el-image :src="getPreviewUrl(selectedFile)" style="max-width:100%;max-height:70vh;" fit="contain" />
+        </template>
+        <template v-else-if="selectedFile.fileType === 'application/pdf'">
+          <iframe :src="getPreviewUrl(selectedFile)" style="width:100%;height:80vh;border:none;"></iframe>
+        </template>
+        <template v-else>
+          <div style="padding:40px 0;text-align:center;">暂不支持在线预览，请下载后查看。</div>
+        </template>
+        <div style="margin-top:16px;">
+          <el-button size="small" type="primary" @click="handleDownload(selectedFile)">下载</el-button>
+          <el-button size="small" type="danger" @click="handleDelete(selectedFile)">删除</el-button>
+        </div>
+        <el-divider />
+        <div style="margin-top:12px;">
+          <div style="font-weight:600;">备注信息：</div>
+          <el-input
+            v-model="selectedFile.remarks"
+            type="textarea"
+            rows="3"
+            placeholder="请输入备注信息"
+            style="margin-top:6px;max-width:500px;"
+            @change="saveFileRemarks(selectedFile)"
+          />
+        </div>
       </div>
-      <el-table :data="fileVersions" stripe style="width: 100%;" v-loading="versionsLoading">
-        <el-table-column prop="version" label="版本" width="80" />
-        <el-table-column prop="uploadTime" label="上传时间" width="180" />
-        <el-table-column prop="uploadedBy" label="上传人" width="120" />
-        <el-table-column prop="remarks" label="备注" />
-        <el-table-column label="操作" width="150">
-          <template #default="scope">
-            <el-button size="small" @click="previewVersion(scope.row)">预览</el-button>
-            <el-button size="small" type="primary" @click="restoreVersion(scope.row)" v-if="scope.row.version !== 'current'">恢复</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
-
-    <!-- 重命名对话框 -->
-    <el-dialog title="重命名文件" v-model="renameDialogVisible" width="500px">
-      <el-form :model="renameForm" label-width="100px">
-        <el-form-item label="新文件名">
-          <el-input v-model="renameForm.newName" placeholder="请输入新文件名"></el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="renameDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmRename" :loading="renaming">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 更改分类对话框 -->
-    <el-dialog title="更改文件分类" v-model="categoryDialogVisible" width="500px">
-      <el-form :model="categoryForm" label-width="100px">
-        <el-form-item label="选择分类">
-          <el-select v-model="categoryForm.newCategory" placeholder="请选择文件分类">
-            <el-option label="证据材料" value="evidence" />
-            <el-option label="诉讼文书" value="litigation" />
-            <el-option label="裁判文书" value="judgment" />
-            <el-option label="其他材料" value="others" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="categoryDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmChangeCategory" :loading="changingCategory">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
+      <div v-else style="padding:40px 0;text-align:center;color:#aaa;">请选择左侧文件进行预览</div>
+    </div>
   </div>
+  <!-- 上传对话框等保留 -->
+  <el-dialog title="上传档案文件" v-model="uploadDialogVisible" width="700px">
+    <document-uploader 
+      :case-id="Number(caseId)" 
+      @upload-success="handleUploadComplete" 
+      @upload-error="handleUploadError"
+    />
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="uploadDialogVisible = false">关闭</el-button>
+      </span>
+    </template>
+  </el-dialog>
+  <el-dialog title="重命名文件" v-model="renameDialogVisible" width="400px">
+    <el-form :model="renameForm" label-width="80px">
+      <el-form-item label="新文件名">
+        <el-input v-model="renameForm.newName" placeholder="请输入新文件名"></el-input>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="renameDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="confirmRename">确定</el-button>
+    </template>
+  </el-dialog>
+  <el-dialog title="更改文件分类" v-model="categoryDialogVisible" width="400px">
+    <el-form :model="categoryForm" label-width="80px">
+      <el-form-item label="选择分类">
+        <el-select v-model="categoryForm.newCategory" placeholder="请选择文件分类">
+          <el-option label="证据材料" value="evidence" />
+          <el-option label="诉讼文书" value="litigation" />
+          <el-option label="裁判文书" value="judgment" />
+          <el-option label="其他材料" value="others" />
+        </el-select>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="categoryDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="confirmChangeCategory">确定</el-button>
+    </template>
+  </el-dialog>
+  <el-dialog title="编辑备注" v-model="remarksDialogVisible" width="400px">
+    <el-form :model="remarksForm" label-width="80px">
+      <el-form-item label="备注">
+        <el-input v-model="remarksForm.newRemarks" type="textarea" rows="3" placeholder="请输入备注信息"></el-input>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="remarksDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="confirmEditRemarks">确定</el-button>
+    </template>
+  </el-dialog>
+  <!-- 批量分类对话框 -->
+  <el-dialog title="批量更改文件分类" v-model="batchCategoryDialogVisible" width="400px">
+    <el-form label-width="80px">
+      <el-form-item label="选择分类">
+        <el-select v-model="batchCategory" placeholder="请选择文件分类">
+          <el-option label="证据材料" value="evidence" />
+          <el-option label="诉讼文书" value="litigation" />
+          <el-option label="裁判文书" value="judgment" />
+          <el-option label="其他材料" value="others" />
+        </el-select>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="batchCategoryDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="confirmBatchCategory">确定</el-button>
+    </template>
+  </el-dialog>
+  <!-- 批量备注对话框 -->
+  <el-dialog title="批量添加备注" v-model="batchRemarksDialogVisible" width="400px">
+    <el-form label-width="80px">
+      <el-form-item label="备注内容">
+        <el-input v-model="batchRemarks" type="textarea" rows="3" placeholder="请输入备注信息"></el-input>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="batchRemarksDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="confirmBatchRemarks">确定</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import axios from 'axios';
 import { useUserStore } from '../stores/user';
+import { getDocuments, uploadDocument, downloadDocument, deleteDocument, updateDocumentSort, batchDownloadDocuments, updateDocumentRemarks, batchUpdateRemarks, updateDocumentCategory } from '../api/document';
+import Viewer from 'viewerjs';
+import 'viewerjs/dist/viewer.css';
+import * as pdfjsLib from 'pdfjs-dist';
+import 'pdfjs-dist/web/pdf_viewer.css';
+import { Upload, Download, Edit, Delete, Folder } from '@element-plus/icons-vue';
+import DocumentUploader from '../components/document/DocumentUploader.vue';
+import { saveAs } from 'file-saver';
+import { PDFDocument } from 'pdf-lib';
+import * as pdfjs from 'pdfjs-dist';
 
 const route = useRoute();
 const router = useRouter();
@@ -293,19 +240,29 @@ const selectedFile = ref(null);
 
 // 重命名对话框
 const renameDialogVisible = ref(false);
-const renaming = ref(false);
-const renameForm = reactive({
-  newName: '',
-  fileId: null
-});
+const renameForm = reactive({ newName: '', file: null });
 
 // 更改分类对话框
 const categoryDialogVisible = ref(false);
-const changingCategory = ref(false);
-const categoryForm = reactive({
-  newCategory: '',
-  fileId: null
-});
+const categoryForm = reactive({ newCategory: '', file: null });
+
+const pdfDialogVisible = ref(false);
+const pdfUrl = ref('');
+const imageDialogVisible = ref(false);
+const imageUrl = ref('');
+const unsupportedDialogVisible = ref(false);
+const unsupportedFileName = ref('');
+
+const treeData = ref([]);
+const treeProps = { children: 'children', label: 'label' };
+
+const treeRef = ref();
+const selectedFiles = ref([]);
+const batchCategoryDialogVisible = ref(false);
+const batchCategory = ref('');
+const batchRemarksDialogVisible = ref(false);
+const batchRemarks = ref('');
+const isDragging = ref(false);
 
 // 计算过滤后的文档列表
 const filteredDocuments = computed(() => {
@@ -398,9 +355,7 @@ const apiService = {
   // 更改文件分类
   async changeFileCategory(fileId, newCategory) {
     try {
-      const response = await axios.put(`${baseApiUrl}/api/documents/${fileId}/category`, { category: newCategory }, {
-        headers: { Authorization: `Bearer ${userStore.token}` }
-      });
+      const response = await updateDocumentCategory(fileId, newCategory);
       return response.data;
     } catch (error) {
       console.error('更改文件分类失败:', error);
@@ -434,7 +389,29 @@ const apiService = {
   // 获取文件版本预览链接
   getVersionPreviewUrl(fileId, versionId) {
     return `${baseApiUrl}/api/documents/${fileId}/versions/${versionId}/preview?token=${userStore.token}`;
-  }
+  },
+  
+  // 更新文件备注
+  async updateFileRemarks(fileId, remarks) {
+    try {
+      const response = await updateDocumentRemarks(fileId, remarks);
+      return response.data;
+    } catch (error) {
+      console.error('更新文件备注失败:', error);
+      throw error;
+    }
+  },
+  
+  // 批量更新文件备注
+  async batchUpdateFileRemarks(fileIds, remarks) {
+    try {
+      const response = await batchUpdateRemarks(fileIds, remarks);
+      return response.data;
+    } catch (error) {
+      console.error('批量更新备注失败:', error);
+      throw error;
+    }
+  },
 };
 
 // 获取案件类型名称
@@ -526,13 +503,14 @@ const uploadDocuments = () => {
   uploadDialogVisible.value = true;
 };
 
-// 文件上传成功处理
-const handleUploadSuccess = (response, file, fileList) => {
-  ElMessage.success(`文件 ${file.name} 上传成功`);
-  if (fileList.every(f => f.status === 'success' || f.status === 'fail')) {
-    uploadDialogVisible.value = false;
-    fetchDocuments(); // 刷新文件列表
-  }
+// 重写handleUploadComplete方法
+const handleUploadComplete = () => {
+  uploadDialogVisible.value = false;
+  loadDocuments();
+  ElMessage({
+    type: 'success',
+    message: '文件上传成功'
+  });
 };
 
 // 文件上传失败处理
@@ -592,7 +570,7 @@ const showFileHistory = async (file) => {
 // 显示重命名对话框
 const showRenameDialog = (file) => {
   renameForm.newName = file.fileName;
-  renameForm.fileId = file.id;
+  renameForm.file = file;
   renameDialogVisible.value = true;
 };
 
@@ -603,47 +581,48 @@ const confirmRename = async () => {
     return;
   }
   
-  renaming.value = true;
-  
   try {
-    await apiService.renameFile(renameForm.fileId, renameForm.newName);
+    await apiService.renameFile(renameForm.file.id, renameForm.newName);
     ElMessage.success('文件重命名成功');
     renameDialogVisible.value = false;
     fetchDocuments(); // 刷新文件列表
   } catch (error) {
     ElMessage.error('文件重命名失败');
-  } finally {
-    renaming.value = false;
   }
 };
 
 // 显示更改分类对话框
 const showChangeCategoryDialog = (file) => {
   categoryForm.newCategory = file.category;
-  categoryForm.fileId = file.id;
+  categoryForm.file = file;
   categoryDialogVisible.value = true;
 };
 
 // 确认更改分类
 const confirmChangeCategory = async () => {
-  changingCategory.value = true;
-  
   try {
-    await apiService.changeFileCategory(categoryForm.fileId, categoryForm.newCategory);
+    await apiService.changeFileCategory(categoryForm.file.id, categoryForm.newCategory);
     ElMessage.success('文件分类已更改');
     categoryDialogVisible.value = false;
     fetchDocuments(); // 刷新文件列表
   } catch (error) {
     ElMessage.error('更改文件分类失败');
-  } finally {
-    changingCategory.value = false;
   }
 };
 
 // 预览文件
 const previewFile = (file) => {
-  const url = apiService.getFilePreviewUrl(file.id);
-  window.open(url, '_blank');
+  const fileType = file.fileType || '';
+  if (fileType.startsWith('image/')) {
+    imageUrl.value = `${baseApiUrl}/api/documents/${file.id}/preview`;
+    imageDialogVisible.value = true;
+  } else if (fileType === 'application/pdf') {
+    pdfUrl.value = `${baseApiUrl}/api/documents/${file.id}/preview`;
+    pdfDialogVisible.value = true;
+  } else {
+    unsupportedFileName.value = file.fileName;
+    unsupportedDialogVisible.value = true;
+  }
 };
 
 // 预览版本文件
@@ -726,18 +705,258 @@ const fetchCaseDetail = async () => {
   }
 };
 
-// 获取案件档案文件
+// 获取文档列表
 const fetchDocuments = async () => {
   documentsLoading.value = true;
-  
   try {
-    const data = await apiService.getDocuments(caseId, filePage.value, filePageSize.value);
-    documents.value = data.documents;
-    totalDocuments.value = data.total;
+    const res = await getDocuments(caseId);
+    documents.value = res.data;
+    treeData.value = buildTreeData(res.data);
   } catch (error) {
     ElMessage.error('获取文件列表失败');
   } finally {
     documentsLoading.value = false;
+  }
+};
+
+// 上传文档
+const handleUpload = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file.raw);
+  formData.append('caseId', caseId);
+  formData.append('category', uploadForm.category);
+  formData.append('remarks', uploadForm.remarks);
+  try {
+    await uploadDocument(formData);
+    ElMessage.success('上传成功');
+    fetchDocuments();
+  } catch (error) {
+    ElMessage.error('上传失败');
+  }
+};
+
+// 下载文档
+const handleDownload = async (doc) => {
+  try {
+    const res = await downloadDocument(doc.id);
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', doc.fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    ElMessage.error('下载失败');
+  }
+};
+
+// 删除文档
+const handleDelete = async (doc) => {
+  try {
+    await deleteDocument(doc.id);
+    ElMessage.success('删除成功');
+    fetchDocuments();
+  } catch (error) {
+    ElMessage.error('删除失败');
+  }
+};
+
+// 排序文档
+const handleSort = async (doc, newOrder) => {
+  try {
+    await updateDocumentSort(doc.id, newOrder);
+    ElMessage.success('排序已更新');
+    fetchDocuments();
+  } catch (error) {
+    ElMessage.error('排序失败');
+  }
+};
+
+const getPreviewUrl = (file) => `${baseApiUrl}/api/documents/${file.id}/preview`;
+
+const handleTreeNodeClick = (data) => {
+  if (data.fileType) {
+    selectedFile.value = data;
+  } else {
+    selectedFile.value = null;
+  }
+};
+
+// 文档列表转树形结构
+const buildTreeData = (docs) => {
+  const categories = [
+    { key: 'evidence', label: '证据材料' },
+    { key: 'litigation', label: '诉讼文书' },
+    { key: 'judgment', label: '裁判文书' },
+    { key: 'others', label: '其他材料' }
+  ];
+  const tree = categories.map(cat => ({
+    id: cat.key,
+    label: cat.label,
+    children: []
+  }));
+  docs.forEach(doc => {
+    const cat = tree.find(c => c.id === doc.category) || tree[tree.length - 1];
+    cat.children.push({ ...doc, label: doc.fileName });
+  });
+  return tree;
+};
+
+const remarksDialogVisible = ref(false);
+const remarksForm = reactive({ newRemarks: '', file: null });
+
+const handleFileContextMenu = (cmd, file) => {
+  if (cmd === 'rename') {
+    renameForm.newName = file.fileName;
+    renameForm.file = file;
+    renameDialogVisible.value = true;
+  } else if (cmd === 'changeCategory') {
+    categoryForm.newCategory = file.category;
+    categoryForm.file = file;
+    categoryDialogVisible.value = true;
+  } else if (cmd === 'editRemarks') {
+    remarksForm.newRemarks = file.remarks || '';
+    remarksForm.file = file;
+    remarksDialogVisible.value = true;
+  } else if (cmd === 'delete') {
+    handleDelete(file);
+  }
+};
+
+const confirmEditRemarks = async () => {
+  try {
+    await saveFileRemarks(remarksForm.file, remarksForm.newRemarks);
+    ElMessage.success('备注已更新');
+    remarksDialogVisible.value = false;
+    fetchDocuments();
+  } catch (error) {
+    ElMessage.error('备注更新失败');
+  }
+};
+
+const saveFileRemarks = async (file, newRemarks) => {
+  // 这里假设有 apiService.updateFileRemarks 方法，实际可用 updateCase 或补充接口
+  try {
+    await apiService.updateFileRemarks(file.id, newRemarks ?? file.remarks);
+  } catch {}
+};
+
+const handleTreeCheckChange = () => {
+  // 获取所有选中的文件节点（排除分类节点）
+  const checkedNodes = treeRef.value.getCheckedNodes(true);
+  selectedFiles.value = checkedNodes.filter(n => n.fileType);
+};
+
+const handleBatchDelete = async () => {
+  if (!selectedFiles.value.length) return;
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的${selectedFiles.value.length}个文件吗？此操作不可逆！`, '批量删除', { type: 'warning' });
+    for (const file of selectedFiles.value) {
+      await deleteDocument(file.id);
+    }
+    ElMessage.success('批量删除成功');
+    fetchDocuments();
+  } catch {}
+};
+
+const openBatchCategoryDialog = () => {
+  batchCategory.value = '';
+  batchCategoryDialogVisible.value = true;
+};
+
+const confirmBatchCategory = async () => {
+  if (!batchCategory.value) {
+    ElMessage.warning('请选择分类');
+    return;
+  }
+  try {
+    for (const file of selectedFiles.value) {
+      await apiService.changeFileCategory(file.id, batchCategory.value);
+    }
+    ElMessage.success('批量分类成功');
+    batchCategoryDialogVisible.value = false;
+    fetchDocuments();
+  } catch {
+    ElMessage.error('批量分类失败');
+  }
+};
+
+// 处理拖拽结束事件
+const handleDragEnd = async (draggingNode, dropNode, dropType, ev) => {
+  // 只处理文件节点的拖拽，不处理分类节点
+  if (!draggingNode.data.fileType) return;
+  
+  // 如果是拖到分类节点上，则更改文件分类
+  if (dropNode && !dropNode.data.fileType && dropType === 'inner') {
+    try {
+      await apiService.changeFileCategory(draggingNode.data.id, dropNode.data.id);
+      ElMessage.success('文件分类已更改');
+      fetchDocuments();
+    } catch (error) {
+      ElMessage.error('更改文件分类失败');
+    }
+    return;
+  }
+  
+  // 如果是在同一个分类内拖动排序
+  if (dropNode && dropNode.data.fileType && dropNode.parent === draggingNode.parent) {
+    const nodes = draggingNode.parent.childNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      try {
+        await updateDocumentSort(nodes[i].data.id, i);
+      } catch (error) {
+        console.error('更新排序失败:', error);
+      }
+    }
+    ElMessage.success('文件排序已更新');
+  }
+};
+
+// 批量下载
+const handleBatchDownload = async () => {
+  if (!selectedFiles.value.length) return;
+  
+  try {
+    const ids = selectedFiles.value.map(file => file.id);
+    const response = await batchDownloadDocuments(ids);
+    
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'documents.zip');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    ElMessage.success('批量下载开始');
+  } catch (error) {
+    ElMessage.error('批量下载失败');
+  }
+};
+
+// 打开批量备注对话框
+const openBatchRemarksDialog = () => {
+  batchRemarks.value = '';
+  batchRemarksDialogVisible.value = true;
+};
+
+// 确认批量备注
+const confirmBatchRemarks = async () => {
+  if (!batchRemarks.value) {
+    ElMessage.warning('请输入备注内容');
+    return;
+  }
+  
+  try {
+    const ids = selectedFiles.value.map(file => file.id);
+    await apiService.batchUpdateFileRemarks(ids, batchRemarks.value);
+    ElMessage.success('批量添加备注成功');
+    batchRemarksDialogVisible.value = false;
+    fetchDocuments();
+  } catch (error) {
+    ElMessage.error('批量添加备注失败');
   }
 };
 
@@ -748,118 +967,49 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.case-detail {
-  padding: 20px;
-}
-
-.page-header {
+.case-detail-flex {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  height: 85vh;
 }
 
-.title-section {
-  display: flex;
-  align-items: center;
-  gap: 15px;
+.tree-panel {
+  width: 280px;
+  border-right: 1px solid #eee;
+  padding: 16px;
+  background: #fafbfc;
 }
 
-.title-section h1 {
-  margin: 0;
-  font-size: 22px;
-  color: #333;
-}
-
-.case-info-card {
-  margin-bottom: 24px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.case-info-content {
+.action-buttons {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-.info-row {
-  display: flex;
-  gap: 30px;
-}
-
-.info-row.full-width {
-  width: 100%;
-}
-
-.info-item {
-  flex: 1;
-  min-width: 0;
-}
-
-.info-label {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 5px;
-}
-
-.info-value {
-  font-size: 15px;
-  color: #333;
-  word-break: break-word;
-}
-
-.info-value.remarks {
-  white-space: pre-line;
-  line-height: 1.5;
-}
-
-.documents-card {
-  margin-bottom: 20px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.file-name-cell {
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-.file-icon {
-  font-size: 16px;
-  color: #606266;
-}
-
-.pagination {
-  margin-top: 20px;
+.button-group {
   display: flex;
-  justify-content: flex-end;
+  gap: 8px;
+  justify-content: center;
 }
 
-.file-history-header {
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #ebeef5;
+.preview-panel {
+  flex: 1;
+  padding: 24px 32px;
+  overflow: auto;
 }
 
-.file-history-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #333;
+.tree-file-label {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.el-tree-node__content {
+  height: 32px;
+}
+
+.el-button [class*='el-icon'] + span {
+  margin-left: 4px;
 }
 </style> 

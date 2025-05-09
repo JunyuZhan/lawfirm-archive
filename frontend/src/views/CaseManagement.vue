@@ -30,8 +30,8 @@
     </div>
     
     <el-table :data="caseList" stripe style="width: 100%;" v-loading="loading">
-      <el-table-column prop="caseNo" label="案号" width="180" />
-      <el-table-column prop="title" label="案由" />
+      <el-table-column prop="caseNumber" label="案号" width="180" />
+      <el-table-column prop="caseReason" label="案由" />
       <el-table-column prop="parties" label="当事人" />
       <el-table-column prop="filingDate" label="立案日期" width="120" />
       <el-table-column prop="court" label="管辖法院" width="180" />
@@ -46,7 +46,7 @@
         <template #default="scope">
           <el-button size="small" @click="viewCase(scope.row.id)">查看</el-button>
           <el-button size="small" type="primary" @click="editCase(scope.row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="deleteCase(scope.row.id)">删除</el-button>
+          <el-button size="small" type="danger" @click="deleteCaseHandler(scope.row.id)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -74,11 +74,11 @@
             <el-option label="非诉" value="non_litigation" />
           </el-select>
         </el-form-item>
-        <el-form-item label="案号" prop="caseNo">
-          <el-input v-model="caseForm.caseNo" placeholder="请输入案号" />
+        <el-form-item label="案号" prop="caseNumber">
+          <el-input v-model="caseForm.caseNumber" placeholder="请输入案号" />
         </el-form-item>
-        <el-form-item label="案由" prop="title">
-          <el-input v-model="caseForm.title" placeholder="请输入案由" />
+        <el-form-item label="案由" prop="caseReason">
+          <el-input v-model="caseForm.caseReason" placeholder="请输入案由" />
         </el-form-item>
         <el-form-item label="当事人" prop="parties">
           <el-input v-model="caseForm.parties" placeholder="请输入当事人" />
@@ -124,8 +124,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { getCases, createCase, updateCase, deleteCase } from '@/api/case';
 
 const router = useRouter();
 const loading = ref(false);
@@ -145,20 +145,20 @@ const dialogVisible = ref(false);
 const dialogTitle = ref('新增案件');
 const caseForm = reactive({
   id: '',
-  type: '',
-  caseNo: '',
-  title: '',
+  caseNumber: '',
+  caseReason: '',
   parties: '',
-  court: '',
+  agents: '',
   filingDate: '',
+  court: '',
+  procedure: '',
   status: 'active',
   remarks: ''
 });
 
 const rules = {
-  type: [{ required: true, message: '请选择案件类型', trigger: 'change' }],
-  caseNo: [{ required: true, message: '请输入案号', trigger: 'blur' }],
-  title: [{ required: true, message: '请输入案由', trigger: 'blur' }],
+  caseNumber: [{ required: true, message: '请输入案号', trigger: 'blur' }],
+  caseReason: [{ required: true, message: '请输入案由', trigger: 'blur' }],
   parties: [{ required: true, message: '请输入当事人', trigger: 'blur' }],
   filingDate: [{ required: true, message: '请选择立案日期', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }]
@@ -187,55 +187,13 @@ const getStatusType = (status) => {
 const fetchCases = async () => {
   loading.value = true;
   try {
-    // TODO: 实际项目中替换为真实API
-    // const res = await axios.get('/api/cases', {
-    //   params: {
-    //     page: page.value,
-    //     pageSize: pageSize.value,
-    //     keyword: searchKeyword.value,
-    //     ...filters
-    //   }
-    // });
-    // caseList.value = res.data.items;
-    // total.value = res.data.total;
-    
-    // 模拟数据用于示例
-    setTimeout(() => {
-      caseList.value = [
-        {
-          id: 1,
-          caseNo: '(2023)浙01民初123号',
-          title: '买卖合同纠纷',
-          parties: '张三 诉 李四',
-          filingDate: '2023-03-15',
-          court: '杭州市中级人民法院',
-          status: 'active'
-        },
-        {
-          id: 2,
-          caseNo: '(2023)浙01民初456号',
-          title: '劳动争议',
-          parties: '王五 诉 某公司',
-          filingDate: '2023-02-28',
-          court: '杭州市中级人民法院',
-          status: 'closed'
-        },
-        {
-          id: 3,
-          caseNo: '(2022)浙01刑初789号',
-          title: '诈骗罪',
-          parties: '检察院 诉 赵六',
-          filingDate: '2022-11-05',
-          court: '杭州市中级人民法院',
-          status: 'archived'
-        }
-      ];
-      total.value = 3;
-      loading.value = false;
-    }, 500);
+    const res = await getCases();
+    caseList.value = res.data;
+    total.value = res.data.length;
   } catch (error) {
     console.error('获取案件列表失败:', error);
     ElMessage.error('获取案件列表失败');
+  } finally {
     loading.value = false;
   }
 };
@@ -270,21 +228,16 @@ const editCase = (row) => {
 };
 
 // 删除案件
-const deleteCase = (id) => {
+const deleteCaseHandler = (id) => {
   ElMessageBox.confirm('确定要删除此案件吗？此操作不可逆', '警告', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(async () => {
     try {
-      // TODO: 实际项目中替换为真实API
-      // await axios.delete(`/api/cases/${id}`);
-      
-      // 模拟删除成功
-      setTimeout(() => {
-        ElMessage.success('删除成功');
-        fetchCases();
-      }, 300);
+      await deleteCase(id);
+      ElMessage.success('删除成功');
+      fetchCases();
     } catch (error) {
       console.error('删除案件失败:', error);
       ElMessage.error('删除案件失败');
@@ -305,30 +258,16 @@ const showCreateDialog = () => {
 const saveCase = () => {
   caseFormRef.value.validate(async (valid) => {
     if (!valid) return;
-    
     try {
-      // 根据是否有ID判断是新增还是编辑
       if (caseForm.id) {
-        // TODO: 实际项目中替换为真实API
-        // await axios.put(`/api/cases/${caseForm.id}`, caseForm);
-        
-        // 模拟编辑成功
-        setTimeout(() => {
-          ElMessage.success('编辑成功');
-          dialogVisible.value = false;
-          fetchCases();
-        }, 300);
+        await updateCase(caseForm.id, caseForm);
+        ElMessage.success('编辑成功');
       } else {
-        // TODO: 实际项目中替换为真实API
-        // await axios.post('/api/cases', caseForm);
-        
-        // 模拟新增成功
-        setTimeout(() => {
-          ElMessage.success('新增成功');
-          dialogVisible.value = false;
-          fetchCases();
-        }, 300);
+        await createCase(caseForm);
+        ElMessage.success('新增成功');
       }
+      dialogVisible.value = false;
+      fetchCases();
     } catch (error) {
       console.error('保存案件失败:', error);
       ElMessage.error('保存案件失败');
